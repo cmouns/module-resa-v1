@@ -15,20 +15,31 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (error) throw error;
       setProfil(data as Profil);
     } catch (error) {
-      console.error('Erreur profil:', error);
+      console.error(error);
       setProfil(null);
     }
   };
 
   useEffect(() => {
     const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        setUser(session.user);
-        await fetchProfil(session.user.id);
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) throw error;
+        
+        if (session?.user) {
+          setUser(session.user);
+          await fetchProfil(session.user.id);
+        }
+      } catch (error) {
+        console.error(error);
+        await supabase.auth.signOut();
+        setUser(null);
+        setProfil(null);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
+    
     checkSession();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
@@ -45,7 +56,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  const logout = async () => { await supabase.auth.signOut(); };
+  const logout = async () => { 
+    await supabase.auth.signOut(); 
+    setUser(null);
+    setProfil(null);
+  };
 
   return (
     <AuthContext.Provider value={{ user, profil, loading, logout }}>
